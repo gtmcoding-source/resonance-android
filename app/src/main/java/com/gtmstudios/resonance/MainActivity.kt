@@ -1,3 +1,4 @@
+
 package com.gtmstudios.resonance
 
 import android.media.AudioAttributes
@@ -8,9 +9,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.PI
@@ -158,9 +162,14 @@ class AudioEngine {
 @Composable
 fun ResonanceApp() {
     val engine = remember { AudioEngine() }
+
     var frequency by remember { mutableFloatStateOf(432f) }
     var volume by remember { mutableFloatStateOf(0.12f) }
     var playing by remember { mutableStateOf(false) }
+
+    var showFrequencyDialog by remember { mutableStateOf(false) }
+    var customFrequency by remember { mutableStateOf("432") }
+    var frequencyError by remember { mutableStateOf(false) }
 
     val presets = listOf(174, 285, 396, 432, 528, 639, 741, 852, 963)
 
@@ -208,7 +217,9 @@ fun ResonanceApp() {
                         fontSize = 12.sp
                     )
                 }
+
                 Spacer(Modifier.weight(1f))
+
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -227,15 +238,24 @@ fun ResonanceApp() {
                 fontSize = 11.sp,
                 letterSpacing = 2.sp
             )
+
             Spacer(Modifier.height(8.dp))
 
-            Row(verticalAlignment = Alignment.Bottom) {
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier.clickable {
+                    customFrequency = frequency.roundToInt().toString()
+                    frequencyError = false
+                    showFrequencyDialog = true
+                }
+            ) {
                 Text(
                     frequency.roundToInt().toString(),
                     fontSize = 68.sp,
                     color = Ink,
                     fontWeight = FontWeight.Light
                 )
+
                 Text(
                     " Hz",
                     fontSize = 21.sp,
@@ -245,9 +265,9 @@ fun ResonanceApp() {
             }
 
             Text(
-                "Choose a tone for your session",
-                color = Muted,
-                fontSize = 12.sp
+                "Tap the frequency number to edit",
+                color = Purple,
+                fontSize = 11.sp
             )
 
             Spacer(Modifier.height(25.dp))
@@ -259,13 +279,17 @@ fun ResonanceApp() {
             ) {
                 val path = Path()
                 val center = size.height / 2
+
                 for (i in 0..300) {
                     val x = size.width * i / 300f
                     val angle = i / 300f * 4f * PI
                     val amplitude = if (playing) 30f else 12f
                     val y = center + (sin(angle) * amplitude).toFloat()
-                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+
+                    if (i == 0) path.moveTo(x, y)
+                    else path.lineTo(x, y)
                 }
+
                 drawPath(
                     path = path,
                     color = Purple,
@@ -344,6 +368,7 @@ fun ResonanceApp() {
                 ) {
                     row.forEach { hz ->
                         val selected = frequency.roundToInt() == hz
+
                         Surface(
                             onClick = { frequency = hz.toFloat() },
                             modifier = Modifier.weight(1f),
@@ -364,10 +389,12 @@ fun ResonanceApp() {
                             }
                         }
                     }
+
                     repeat(3 - row.size) {
                         Spacer(Modifier.weight(1f))
                     }
                 }
+
                 Spacer(Modifier.height(9.dp))
             }
 
@@ -383,12 +410,14 @@ fun ResonanceApp() {
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("−", color = Muted)
+
                 Slider(
                     value = volume,
                     onValueChange = { volume = it },
                     valueRange = 0f..0.25f,
                     modifier = Modifier.weight(1f)
                 )
+
                 Text("+", color = Muted)
             }
 
@@ -399,6 +428,87 @@ fun ResonanceApp() {
                 color = Muted,
                 fontSize = 10.sp,
                 letterSpacing = 1.5.sp
+            )
+        }
+
+        if (showFrequencyDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showFrequencyDialog = false
+                },
+                title = {
+                    Text(
+                        "Custom Frequency",
+                        color = Ink,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column {
+                        Text(
+                            "Enter a frequency between 20 and 2000 Hz.",
+                            color = Muted,
+                            fontSize = 13.sp
+                        )
+
+                        Spacer(Modifier.height(14.dp))
+
+                        OutlinedTextField(
+                            value = customFrequency,
+                            onValueChange = {
+                                customFrequency = it.filter { char ->
+                                    char.isDigit()
+                                }
+                                frequencyError = false
+                            },
+                            singleLine = true,
+                            label = { Text("Frequency (Hz)") },
+                            placeholder = { Text("Example: 777") },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number
+                            ),
+                            isError = frequencyError,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        if (frequencyError) {
+                            Text(
+                                "Enter a whole number from 20 to 2000.",
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(top = 6.dp)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val value = customFrequency.toIntOrNull()
+
+                            if (value != null && value in 20..2000) {
+                                frequency = value.toFloat()
+                                showFrequencyDialog = false
+                                frequencyError = false
+                            } else {
+                                frequencyError = true
+                            }
+                        }
+                    ) {
+                        Text("Apply")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showFrequencyDialog = false
+                        }
+                    ) {
+                        Text("Cancel", color = Ink)
+                    }
+                },
+                shape = RoundedCornerShape(20.dp),
+                containerColor = Color.White
             )
         }
     }
